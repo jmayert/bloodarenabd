@@ -126,15 +126,15 @@ function _regTgStartPolling(token) {
 
 // ── Firebase config (from config.php) ────────────────────
 const _firebaseConfig = {
-  apiKey:            "(window.BA_CONFIG.firebase["apiKey"] || "")",
-  authDomain:        "(window.BA_CONFIG.firebase["authDomain"] || "")",
-  projectId:         "(window.BA_CONFIG.firebase["projectId"] || "")",
-  storageBucket:     "(window.BA_CONFIG.firebase["storageBucket"] || "")",
-  messagingSenderId: "(window.BA_CONFIG.firebase["messagingSenderId"] || "")",
-  appId:             "(window.BA_CONFIG.firebase["appId"] || "")",
-  measurementId:     "(window.BA_CONFIG.firebase["measurementId"] || "")"
+  apiKey:            (window.BA_CONFIG.firebase["apiKey"] || ""),
+  authDomain:        (window.BA_CONFIG.firebase["authDomain"] || ""),
+  projectId:         (window.BA_CONFIG.firebase["projectId"] || ""),
+  storageBucket:     (window.BA_CONFIG.firebase["storageBucket"] || ""),
+  messagingSenderId: (window.BA_CONFIG.firebase["messagingSenderId"] || ""),
+  appId:             (window.BA_CONFIG.firebase["appId"] || ""),
+  measurementId:     (window.BA_CONFIG.firebase["measurementId"] || "")
 };
-const _VAPID_KEY = "(window.BA_CONFIG.firebase["vapidKey"] || "")";
+const _VAPID_KEY = (window.BA_CONFIG.firebase["vapidKey"] || "");
 
 var _fbApp, _fbMessaging;
 try {
@@ -204,7 +204,7 @@ if (_fbMessaging) {
     try {
       var n = payload.notification || {};
       var d = payload.data || {};
-      var url = (d.url) ? d.url : '(window.BA_CONFIG.siteUrl || "")/?tab=emergency';
+      var url = (d.url) ? d.url : '/?tab=emergency';
       // Use same tag as PHP FCM V1 push ('blood-req-{id}') — browser replaces duplicate
       var notifTag = d.request_id ? ('blood-req-' + d.request_id) : (n.tag || 'blood-req-fcm');
       if ('serviceWorker' in navigator) {

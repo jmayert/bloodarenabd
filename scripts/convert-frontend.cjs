@@ -17,7 +17,13 @@ function fatal(msg) {
   process.exit(1);
 }
 
-// ---------- 1. Pure-static assets ----------
+// ---------- 1. Static assets ----------
+// Strip any PHP blocks (header comments etc.) — files are served as real JS.
+function stripPhp(s, label) {
+  const out = s.replace(/<\?php[\s\S]*?\?>/g, "").replace(/<\?=[\s\S]*?\?>/g, "");
+  if (/<\?/.test(out)) fatal("unresolved PHP in " + label);
+  return out;
+}
 for (const [src, out] of [
   ["assets/boot.js.php", "boot.js"],
   ["assets/fx-3d.js.php", "fx-3d.js"],
@@ -25,7 +31,7 @@ for (const [src, out] of [
   ["assets/i18n-engine.js.php", "i18n-engine.js"],
   ["assets/net-lite.js.php", "net-lite.js"],
 ]) {
-  fs.writeFileSync(path.join(OUT_STATIC, out), read(src));
+  fs.writeFileSync(path.join(OUT_STATIC, out), stripPhp(read(src), out));
 }
 
 // styles.css: bake brand colors from env at build time (documented deviation)
@@ -39,9 +45,9 @@ fs.writeFileSync(path.join(OUT_STATIC, "styles.css"), css);
 
 // head-init.js: Firebase config + VAPID key come from window.BA_CONFIG.firebase
 let headInit = read("assets/head-init.js.php");
-headInit = headInit.replace(/<\?= FIREBASE\['(\w+)'\] \?>/g, '(window.BA_CONFIG.firebase["$1"] || "")');
-headInit = headInit.split("<?= SITE_URL ?>").join('(window.BA_CONFIG.siteUrl || "")');
-if (/<\?=|<\?php/.test(headInit)) fatal("unresolved PHP in head-init.js");
+headInit = headInit.replace(/"<\?= FIREBASE\['(\w+)'\] \?>"/g, '(window.BA_CONFIG.firebase["$1"] || "")');
+headInit = headInit.replace(/"<\?= SITE_URL \?>"/g, '(window.BA_CONFIG.siteUrl || "")');
+headInit = stripPhp(headInit, "head-init.js");
 fs.writeFileSync(path.join(OUT_STATIC, "head-init.js"), headInit);
 
 // app.js: CSRF token + auth state from window.BA_CONFIG
@@ -187,7 +193,7 @@ b = splitExact(
 b = splitExact(
   b,
   `<script><?php include __DIR__ . '/../assets/app.js.php'; ?></script>`,
-  `<script>window.BA_CONFIG=__BA_CONFIG__;window.BA_CONFIG.firebase=window.__FIREBASE_CFG__.firebase;</script>\n<script src="/static/app.js"></script>`
+  `<script src="/static/app.js"></script>`
 );
 b = splitExact(
   b,

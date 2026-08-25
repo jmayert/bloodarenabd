@@ -1,7 +1,4 @@
-<?php /* assets/fx-3d.js.php — Immersive 3D / animation layer.
-   Loaded after app.js.php. Three.js (global THREE) is loaded `defer` in head,
-   so it is guaranteed available by DOMContentLoaded. Everything here is gated:
-   heavy FX run only under body.fx-on; body.fx-lite is the safe static mode. */ ?>
+
 (function () {
   'use strict';
 

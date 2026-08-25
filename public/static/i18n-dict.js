@@ -1,10 +1,4 @@
-<?php /* i18n-dict.js.php — BN→EN dictionary for the runtime translation engine in boot.js.php.
-   Keys are the EXACT trimmed Bangla text as it appears in a DOM text node or a
-   translatable attribute (placeholder/title/aria-label/button value). The engine
-   trims surrounding whitespace before lookup and preserves it on replace, so keys
-   here must be the trimmed phrase. Inline tags (<strong>, <br>, <span>) split text
-   into separate nodes — each piece is its own key. Comments in source are never
-   rendered, so they are intentionally absent here. */ ?>
+
 window.BA_I18N = {
   // Reverse map is not needed: original Bangla is cached per-node by the engine.
   bn2en: {

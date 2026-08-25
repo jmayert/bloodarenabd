@@ -1,9 +1,4 @@
-<?php /* assets/net-lite.js.php — Network-adaptive Lite mode.
-   ধীর সংযোগ (Network Information API) auto-detect করে <html>/<body>-তে `net-lite`
-   class + window.BA_LITE toggle করে; সংযোগ ভালো হলে **reload ছাড়াই** full mode-এ
-   ফেরে। `net-lite` থাকলে brand name-এর পাশের "Lite" superscript (CSS-driven) দেখায়।
-   অন্য module `ba:litechange` event শুনে react করতে পারে।
-   iOS Safari / Firefox-এ connection API নেই → ওখানে সবসময় full (নিরাপদ ডিফল্ট)। */ ?>
+
 (function () {
   'use strict';
 

@@ -1,7 +1,4 @@
-<?php /* i18n-engine.js.php — standalone copy of the dictionary-driven translation
-   engine (same logic as the block in boot.js.php) for pages that should NOT load
-   boot.js.php's PWA/service-worker code, e.g. admin.php. Requires window.BA_I18N
-   (from i18n-dict.js.php) to be defined first. Default language stays 'bn'. */ ?>
+
 (function() {
     var I18N     = window.BA_I18N || {};
     var DICT     = I18N.bn2en   || {};
