@@ -33,6 +33,9 @@ model Donor {
   hideMe          Boolean  @default(false)
   allowCall       Boolean  @default(true)
   deviceId        String?  @db.VarChar(100)
+  status          String   @default("") @db.VarChar(20)
+  secretCode      String?  @db.VarChar(20)
+  refCode         String?  @db.VarChar(10)
 
   @@index([authUid], map: "idx_auth_uid")
   @@index([bloodGroup], map: "idx_blood_group")
@@ -356,4 +359,53 @@ model AdminUser {
   createdAt DateTime @default(now()) @db.DateTime(0)
 
   @@map("admin_users")
+}
+
+// ---- Legacy tables imported from bloodarenabd.org (not used by Node app yet,
+// kept in sync so prisma db push never drops them) ----
+
+model AdminAuditLog {
+  id        Int       @id @default(autoincrement())
+  event     String    @db.VarChar(80)
+  ip        String    @db.VarChar(50)
+  userAgent String?   @db.VarChar(300) @map("user_agent")
+  detail    String?   @db.VarChar(300)
+  createdAt DateTime? @default(now()) @db.DateTime(0) @map("created_at")
+
+  @@map("admin_audit_log")
+}
+
+model ApiToken {
+  id         Int       @id @default(autoincrement())
+  tokenName  String    @db.VarChar(100) @map("token_name")
+  tokenValue String    @db.VarChar(80) @map("token_value")
+  isActive   Boolean?  @default(true) @map("is_active")
+  lastUsed   DateTime? @db.DateTime(0) @map("last_used")
+  createdAt  DateTime? @default(now()) @db.DateTime(0) @map("created_at")
+
+  @@map("api_tokens")
+}
+
+model IpWhitelist {
+  id        Int       @id @default(autoincrement())
+  ip        String    @db.VarChar(50)
+  label     String?   @default("") @db.VarChar(100)
+  isActive  Boolean?  @default(true) @map("is_active")
+  createdAt DateTime? @default(now()) @db.DateTime(0) @map("created_at")
+
+  @@map("ip_whitelist")
+}
+
+model SecurityCodeRequest {
+  id          Int       @id @default(autoincrement())
+  donorNumber String    @db.VarChar(20) @map("donor_number")
+  refCode     String    @db.VarChar(10) @map("ref_code")
+  deviceId    String    @db.VarChar(100) @map("device_id")
+  reqIp       String?   @db.VarChar(50) @map("req_ip")
+  status      String?   @default("pending") @db.VarChar(20)
+  adminNote   String?   @default("") @db.VarChar(500) @map("admin_note")
+  createdAt   DateTime? @default(now()) @db.DateTime(0) @map("created_at")
+  viewCount   Int?      @default(0) @map("view_count") @db.TinyInt
+
+  @@map("security_code_requests")
 }
