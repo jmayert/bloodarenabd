@@ -27,13 +27,10 @@ async function postJson(url: string, body: unknown): Promise<Response | null> {
   }
 }
 
-/** Telegram bot relay (external Node service, secret-guarded). */
-async function telegramSend(endpoint: string, payload: Record<string, unknown>) {
-  if (!config.telegram.botUrl || !config.telegram.botSecret) return;
-  await postJson(`${config.telegram.botUrl.replace(/\/$/, "")}/${endpoint}`, {
-    secret: config.telegram.botSecret,
-    ...payload,
-  });
+/** Telegram bot relay — shared helper (handles insecure-TLS bot cert). */
+function tgSend(endpoint: string, payload: Record<string, unknown>) {
+  const { telegramSend } = require("./telegram") as typeof import("./telegram");
+  return telegramSend(endpoint, payload);
 }
 
 interface FanoutRequest {
@@ -73,7 +70,7 @@ export async function fanoutNewRequest(req: FanoutRequest): Promise<void> {
       // using jittered coordinates is done server-side in PHP; we pass the
       // request coords and let the bot filter by its stored chat location.
     }
-    await telegramSend("notify", { phone, message: `${req.message} (${req.hospital})` });
+    await tgSend("notify", { phone, message: `${req.message} (${req.hospital})` });
   }
 
   // FCM fan-out to all tokens

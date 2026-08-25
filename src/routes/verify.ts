@@ -19,24 +19,8 @@ function normalizeBdPhone(raw: string): string | null {
 }
 
 async function botPost(endpoint: string, payload: Record<string, unknown>): Promise<number> {
-  if (!config.telegram.botUrl || !config.telegram.botSecret) return 0;
-  try {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 10000);
-    const res = await fetch(
-      `${config.telegram.botUrl.replace(/\/$/, "")}/${endpoint}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ secret: config.telegram.botSecret, ...payload }),
-        signal: ctrl.signal,
-      }
-    );
-    clearTimeout(t);
-    return res.status;
-  } catch {
-    return 0;
-  }
+  const { telegramSend } = require("../services/telegram") as typeof import("../services/telegram");
+  return telegramSend(endpoint, payload);
 }
 
 /** One number can verify only one account (duplicate prevention). */
