@@ -2,19 +2,22 @@
  * db:import — load production MySQL data into the new managed database.
  *
  * Usage:
- *   1. Create a schema-only baseline first:  npm run db:migrate   (prisma migrate deploy)
+ *   1. Schema already applied (prisma migrate deploy / db push).
  *   2. Dump the OLD production DB (on the old host):
  *        mysqldump --single-transaction --no-create-info --complete-insert \
  *          --skip-triggers bloodare_org > prod-data.sql
  *   3. Import:  npm run db:import -- path/to/prod-data.sql
  *
- * The script disables FK checks during load (matching the legacy schema's
- * no-FK design), streams statement batches, and prints per-table row counts
+ * NOTE ON COLUMNS: the legacy PHP schema uses snake_case column names while
+ * this Prisma-managed DB uses camelCase. INSERT statements are rewritten on
+ * the fly (blood_group -> bloodGroup etc.) so legacy dumps drop in directly.
+ *
+ * The script disables FK checks during load and prints per-table row counts
  * for verification at the end.
  */
 import { createInterface } from "readline";
 import { createReadStream } from "fs";
-import mysql from "mysql2/promise";
+import * as mysql from "mysql2/promise";
 
 const TABLES = [
   "donors",
@@ -41,6 +44,23 @@ const TABLES = [
   "community_action_log",
 ];
 
+function snakeToCamel(s: string): string {
+  return s.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+}
+
+/** Rewrite an INSERT statement's column list from snake_case to camelCase. */
+function translateInsert(stmt: string): string {
+  const m = stmt.match(/^(\s*INSERT\s+(?:IGNORE\s+)?INTO\s+`?\w+`?\s*)\(([^)]+)\)(\s*VALUES[\s\S]*)$/i);
+  if (!m) return stmt;
+  const cols = m[2].split(",").map((c) => {
+    const name = c.trim().replace(/`/g, "");
+    return "`" + snakeToCamel(name) + "`";
+  });
+  // Prisma-created tables may not have every legacy column; unknown columns
+  // will fail loudly — acceptable for verification purposes.
+  return `${m[1]}(${cols.join(", ")})${m[3]}`;
+}
+
 async function main() {
   const sqlFile = process.argv[2];
   if (!sqlFile) {
@@ -52,21 +72,32 @@ async function main() {
     console.error("DIRECT_DATABASE_URL / DATABASE_URL not set");
     process.exit(2);
   }
-  const conn = await mysql.createConnection(url);
+  // Strip query params that mysql2 does not understand
+  const cleanUrl = url.replace(/\?.*$/, "");
+  const conn = await mysql.createConnection({
+    uri: cleanUrl,
+    ssl: { rejectUnauthorized: false },
+    multipleStatements: false,
+  });
   await conn.query("SET FOREIGN_KEY_CHECKS=0");
   await conn.query("SET UNIQUE_CHECKS=0");
-  await conn.query("SET sql_log_bin=0").catch(() => undefined);
 
-  // Parse the dump: split statements on ';' at end-of-line, skipping comments
   const rl = createInterface({ input: createReadStream(sqlFile), crlfDelay: Infinity });
   let buffer = "";
   let stmts = 0;
+  let skipped = 0;
   let inString = false;
   const batch: string[] = [];
   const flush = async () => {
-    if (batch.length === 0) return;
-    await conn.query(batch.join("\n"));
-    stmts += batch.length;
+    for (const s of batch) {
+      try {
+        await conn.query(s);
+        stmts++;
+      } catch (err) {
+        skipped++;
+        console.error(`  ! statement failed (${(err as Error).message.slice(0, 100)})`);
+      }
+    }
     batch.length = 0;
   };
 
@@ -80,33 +111,31 @@ async function main() {
     ) {
       continue;
     }
-    // Skip DDL (schema already exists via Prisma migrations)
-    if (/^(CREATE|DROP|ALTER|LOCK|UNLOCK)\b/i.test(buffer + trimmed)) {
-      if (trimmed.endsWith(";")) buffer = "";
-      continue;
-    }
     buffer += line + "\n";
-    // count unescaped quotes to detect string boundaries
     for (let i = 0; i < line.length; i++) {
       const ch = line[i];
-      if (ch === "\\" && inString) continue; // skip escaped char
+      if (ch === "\\" && inString) continue;
       if (ch === "'" || ch === '"') inString = !inString;
     }
     if (!inString && trimmed.endsWith(";")) {
-      batch.push(buffer);
+      const stmt = buffer.trim();
       buffer = "";
       inString = false;
+      // Skip DDL/locking — schema already exists via Prisma
+      if (/^(CREATE|DROP|ALTER|LOCK|UNLOCK|SET)\b/i.test(stmt)) continue;
+      batch.push(translateInsert(stmt));
       if (batch.length >= 200) await flush();
     }
   }
-  if (buffer.trim()) batch.push(buffer);
+  if (buffer.trim() && !/^(CREATE|DROP|ALTER|LOCK|UNLOCK|SET)\b/i.test(buffer.trim())) {
+    batch.push(translateInsert(buffer.trim()));
+  }
   await flush();
   await conn.query("SET FOREIGN_KEY_CHECKS=1");
   await conn.query("SET UNIQUE_CHECKS=1");
 
-  console.log(`Executed ${stmts} statements.`);
+  console.log(`\nExecuted ${stmts} statements${skipped ? `, ${skipped} failed` : ""}.`);
 
-  // Verification: row counts per table
   console.log("\nRow counts (target DB):");
   let total = 0;
   for (const t of TABLES) {
@@ -116,15 +145,13 @@ async function main() {
       total += n;
       console.log(`  ${t.padEnd(24)} ${n}`);
     } catch {
-      console.log(`  ${t.padEnd(24)} (table missing — run migrations first)`);
+      console.log(`  ${t.padEnd(24)} (missing)`);
     }
   }
   console.log(`  ${"TOTAL".padEnd(24)} ${total}`);
 
   await conn.end();
-
-  // Post-import fixes: recompute badge levels where stale (PHP parity helper)
-  console.log("\nDone. Verify against source DB counts before cutover.");
+  console.log("\nVerify against source DB counts before cutover.");
 }
 
 main().catch((err) => {
