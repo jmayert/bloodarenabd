@@ -25,7 +25,7 @@ model Donor {
   willingToDonate String   @default("yes") @db.VarChar(3) // 'yes' | 'no'
   regGeo          String?  @db.VarChar(120) // "Lat:x, Lon:y" text format
   regIp           String?  @db.VarChar(45)
-  regDevice       String?  @db.VarChar(100)
+  regDevice       String?  @db.VarChar(600)
   createdAt       DateTime @default(now()) @db.DateTime(0)
   authUid         String?  @db.VarChar(128)
   authEmail       String?  @db.VarChar(190)
