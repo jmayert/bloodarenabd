@@ -176,7 +176,7 @@ export async function sendReportEmail(
 ): Promise<void> {
   if (!config.reportsEmailTo || !process.env.RESEND_API_KEY) return;
   await postJson("https://api.resend.com/emails", {
-    from: "reports@bloodarenabd.org",
+    from: process.env.RESEND_FROM || "onboarding@resend.dev",
     to: config.reportsEmailTo,
     subject: "Blood Arena - Harassment Report",
     text: `Donor phone: ${donorPhone}\nHarasser: ${harasserInfo}\n\n${comment}`,
