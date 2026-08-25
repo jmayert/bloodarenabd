@@ -1,0 +1,359 @@
+// Blood Arena BD — Prisma schema
+// Mirrors the existing production MySQL schema 1:1 (audited from includes/backend.php).
+// NOTE: Foreign keys are intentionally omitted (except community_replies.post_id)
+// to match the existing shared-hosting-compatible design.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "mysql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_DATABASE_URL")
+}
+
+model Donor {
+  id              Int      @id @default(autoincrement())
+  name            String   @db.VarChar(100)
+  phone           String   @db.VarChar(20)
+  location        String   @db.VarChar(255)
+  bloodGroup      String   @db.VarChar(5)
+  lastDonation    String?  @db.VarChar(10) // DATE string or literal 'no' / '0000-00-00'
+  totalDonations  Int      @default(0)
+  badgeLevel      String?  @db.VarChar(20)
+  willingToDonate String   @default("yes") @db.VarChar(3) // 'yes' | 'no'
+  regGeo          String?  @db.VarChar(120) // "Lat:x, Lon:y" text format
+  regIp           String?  @db.VarChar(45)
+  regDevice       String?  @db.VarChar(100)
+  createdAt       DateTime @default(now()) @db.DateTime(0)
+  authUid         String?  @db.VarChar(128)
+  authEmail       String?  @db.VarChar(190)
+  gender          String?  @db.VarChar(10)
+  hideMe          Boolean  @default(false)
+  allowCall       Boolean  @default(true)
+  deviceId        String?  @db.VarChar(100)
+
+  @@index([authUid], map: "idx_auth_uid")
+  @@index([bloodGroup], map: "idx_blood_group")
+  @@index([location], map: "idx_location")
+  @@map("donors")
+}
+
+model BloodRequest {
+  id               Int      @id @default(autoincrement())
+  patientName      String   @db.VarChar(100)
+  bloodGroup       String   @db.VarChar(5)
+  hospital         String   @db.VarChar(200)
+  contact          String   @db.VarChar(20)
+  urgency          String   @default("High") @db.VarChar(10) // Critical|High|Medium
+  bagsNeeded       Int
+  note             String?  @db.VarChar(500)
+  status           String   @default("Active") @db.VarChar(10) // Active|Expired|Deleted
+  reqIp            String?  @db.VarChar(45)
+  createdAt        DateTime @default(now()) @db.DateTime(0)
+  authUid          String?  @db.VarChar(128)
+  requiredAt       DateTime? @db.DateTime
+  hospitalLat      Decimal? @db.Decimal(10, 7)
+  hospitalLng      Decimal? @db.Decimal(10, 7)
+  verifiedLocation Boolean  @default(false)
+  donationCode     String?  @db.VarChar(6)
+  codeUses         Int      @default(0)
+  reqDeviceId      String?  @db.VarChar(100)
+
+  documents   RequestDocument[]
+  redemptions CodeRedemption[]
+
+  @@index([donationCode], map: "idx_donation_code")
+  @@index([status, urgency, createdAt], map: "idx_status_urgency")
+  @@map("blood_requests")
+}
+
+model RequestDocument {
+  id        Int      @id @default(autoincrement())
+  requestId Int
+  filePath  String   @db.VarChar(255)
+  token     String   @unique(map: "uq_token") @db.VarChar(64)
+  mime      String   @default("image/jpeg") @db.VarChar(20)
+  bytes     Int?
+  createdAt DateTime @default(now()) @db.DateTime(0)
+
+  request    BloodRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId], map: "idx_request")
+  @@map("request_documents")
+}
+
+model ContactRequest {
+  id              Int      @id @default(autoincrement())
+  donorId         Int
+  donorAuthUid    String?  @db.VarChar(128)
+  requesterAuthUid String? @db.VarChar(128)
+  requesterName   String   @db.VarChar(120)
+  requesterPhone  String?  @db.VarChar(20) // nulled until accepted
+  bloodGroup      String   @db.VarChar(5)
+  message         String?  @db.VarChar(500)
+  status          String   @default("pending") @db.VarChar(12) // pending|accepted|declined
+  createdAt       DateTime @default(now()) @db.DateTime(0)
+
+  @@index([donorId], map: "idx_donor")
+  @@index([donorAuthUid], map: "idx_donor_uid")
+  @@index([status], map: "idx_status")
+  @@map("contact_requests")
+}
+
+model CallLog {
+  id             Int      @id @default(autoincrement())
+  donorId        Int
+  callerName     String?  @db.VarChar(120)
+  callerPhone    String?  @db.VarChar(20)
+  callerIp       String?  @db.VarChar(45)
+  callerLocation String?  @db.VarChar(255)
+  deviceInfo     String?  @db.VarChar(255)
+  createdAt      DateTime @default(now()) @db.DateTime(0)
+
+  @@index([donorId], map: "idx_donor")
+  @@map("call_logs")
+}
+
+model Report {
+  id             Int      @id @default(autoincrement())
+  donorPhone     String   @db.VarChar(20)
+  harasserInfo   String   @db.VarChar(255)
+  reportComment  String?  @db.Text
+  createdAt      DateTime @default(now()) @db.DateTime(0)
+
+  @@map("reports")
+}
+
+model AnalyticsCounter {
+  counterName  String   @id @db.VarChar(50)
+  counterValue BigInt   @default(0) @db.UnsignedBigInt
+
+  @@map("analytics_counters")
+}
+
+model ServiceNotification {
+  id        Int      @id @default(autoincrement())
+  deviceId  String   @db.VarChar(100)
+  type      String   @db.VarChar(30) // location_on|notif_on|info|warning|...
+  message   String   @db.Text
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now()) @db.DateTime(0)
+
+  @@index([deviceId, isRead], map: "idx_device_read")
+  @@map("service_notifications")
+}
+
+model AdminMessage {
+  id          Int       @id @default(autoincrement())
+  senderName  String    @db.VarChar(100)
+  senderPhone String?   @db.VarChar(20)
+  message     String    @db.Text
+  deviceId    String    @db.VarChar(100)
+  isRead      Boolean   @default(false)
+  adminReply  String?   @db.Text
+  repliedAt   DateTime? @db.DateTime
+  createdAt   DateTime  @default(now()) @db.DateTime(0)
+
+  @@index([deviceId], map: "idx_device")
+  @@map("admin_messages")
+}
+
+model AuthUser {
+  id             Int       @id @default(autoincrement())
+  firebaseUid    String    @unique(map: "uniq_uid") @db.VarChar(128)
+  provider       String    @db.VarChar(10) // google | phone
+  email          String?   @db.VarChar(190)
+  phone          String?   @db.VarChar(20)
+  name           String?   @db.VarChar(120)
+  deviceId       String?   @db.VarChar(100)
+  lastLogin      DateTime? @db.DateTime
+  createdAt      DateTime  @default(now()) @db.DateTime(0)
+  verified       Boolean   @default(false)
+  verifyChannel  String?   @db.VarChar(20)
+  verifyPhone    String?   @db.VarChar(20)
+  telegramChatId String?   @db.VarChar(40)
+  verifiedAt     DateTime? @db.DateTime
+
+  @@map("auth_users")
+}
+
+model OtpVerification {
+  id        Int       @id @default(autoincrement())
+  authUid   String    @db.VarChar(128)
+  channel   String    @db.VarChar(30) // telegram_share|tg_cn_share|...
+  token     String    @db.VarChar(64)
+  phone     String?   @db.VarChar(20)
+  tgChatId  String?   @db.VarChar(40)
+  codeHash  String?   @db.VarChar(255)
+  status    String    @default("pending") @db.VarChar(12) // pending|verified|superseded
+  attempts  Int       @default(0)
+  expiresAt DateTime  @db.DateTime
+  createdAt DateTime  @default(now()) @db.DateTime(0)
+
+  @@index([token], map: "idx_token")
+  @@index([authUid], map: "idx_auth_uid")
+  @@index([phone], map: "idx_phone")
+  @@map("otp_verifications")
+}
+
+model SmsOtp {
+  id        Int      @id @default(autoincrement())
+  phone     String   @db.VarChar(15)
+  otpHash   String   @db.VarChar(255) // improved: hashed instead of plaintext
+  purpose   String  
+  isUsed    Boolean  @default(false)
+  createdAt DateTime @default(now()) @db.DateTime(0)
+  expiresAt DateTime @db.DateTime
+  authUid   String?  @db.VarChar(128)
+
+  @@index([phone, otpHash], map: "idx_phone_otp")
+  @@index([authUid, createdAt], map: "idx_uid_created")
+  @@index([phone, createdAt], map: "idx_phone_created")
+  @@map("sms_otp")
+}
+
+model DonationHistory {
+  id          Int      @id @default(autoincrement())
+  authUid     String   @db.VarChar(128)
+  donorId     Int
+  donationDate DateTime @db.Date
+  createdAt   DateTime @default(now()) @db.DateTime(0)
+  source      String   @default("code") @db.VarChar(12) // code | self
+  note        String?  @db.VarChar(140)
+  reportedIp  String?  @db.VarChar(45)
+
+  @@index([authUid], map: "idx_auth_uid")
+  @@index([donorId], map: "idx_donor")
+  @@map("donation_history")
+}
+
+model CodeRedemption {
+  id           Int      @id @default(autoincrement())
+  requestId    Int
+  donorId      Int
+  donorAuthUid String   @db.VarChar(128)
+  donationCode String   @db.VarChar(6)
+  redeemedAt   DateTime @default(now()) @db.DateTime(0)
+
+  request     BloodRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@unique([requestId, donorId], map: "uniq_req_donor")
+  @@index([requestId], map: "idx_request")
+  @@map("code_redemptions")
+}
+
+model OnlineVisitor {
+  visitorToken String   @id @db.VarChar(100)
+  lastSeen     DateTime @default(now()) @db.DateTime(0)
+
+  @@map("online_visitors")
+}
+
+model Visitor {
+  sessionId String   @id @db.VarChar(100)
+  lastSeen  DateTime @default(now()) @db.DateTime(0)
+  page      String?  @db.VarChar(255)
+
+  @@index([lastSeen], map: "idx_last_seen")
+  @@map("visitors")
+}
+
+model FcmToken {
+  id        Int      @id @default(autoincrement())
+  fcmToken  String   @unique(map: "uniq_token") @db.VarChar(512)
+  deviceId  String?  @db.VarChar(100)
+  createdAt DateTime @default(now()) @db.DateTime(0)
+  updatedAt DateTime @default(now()) @updatedAt @db.DateTime(0)
+
+  @@map("fcm_tokens")
+}
+
+model PushSubscription {
+  id        Int      @id @default(autoincrement())
+  endpoint  String   @db.Text
+  p256dh    String?  @db.Text
+  auth      String?  @db.Text
+  deviceId  String?  @db.VarChar(100)
+  createdAt DateTime @default(now()) @db.DateTime(0)
+
+  @@map("push_subscriptions")
+}
+
+model DeviceToken {
+  deviceId  String   @id @db.VarChar(100)
+  context   String?  @db.VarChar(30)
+  ip        String?  @db.VarChar(45)
+  ua        String?  @db.VarChar(300)
+  updatedAt DateTime @default(now()) @updatedAt @db.DateTime(0)
+
+  @@map("device_tokens")
+}
+
+model CommunityPost {
+  id          Int      @id @default(autoincrement())
+  type        String  
+  authUid     String?  @db.VarChar(128)
+  displayName String   @default("Anonymous") @db.VarChar(120)
+  content     String   @db.Text
+  rating      Int?
+  ipAddress   String?  @db.VarChar(45)
+  createdAt   DateTime @default(now()) @db.DateTime(0)
+
+  replies     CommunityReply[]
+
+  @@index([type], map: "idx_type")
+  @@index([createdAt], map: "idx_created")
+  @@index([authUid], map: "idx_auth_uid")
+  @@map("community_posts")
+}
+
+model CommunityReply {
+  id          Int      @id @default(autoincrement())
+  postId      Int
+  authUid     String?  @db.VarChar(128)
+  displayName String   @default("Anonymous") @db.VarChar(120)
+  content     String   @db.Text
+  ipAddress   String?  @db.VarChar(45)
+  createdAt   DateTime @default(now()) @db.DateTime(0)
+
+  post        CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId], map: "idx_post_id")
+  @@index([createdAt], map: "idx_created")
+  @@map("community_replies")
+}
+
+model CommunityActionLog {
+  id         Int      @id @default(autoincrement())
+  actorId    String   @db.VarChar(128) // auth_uid or IP
+  actionType String   @db.VarChar(10) // post | reply
+  createdAt  DateTime @default(now()) @db.DateTime(0)
+
+  @@index([actorId, createdAt], map: "idx_actor_time")
+  @@map("community_action_log")
+}
+
+// ---- Admin panel tables (used in Phase 2; created now for data parity) ----
+
+model RateLimit {
+  key         String   @db.VarChar(150)
+  action      String   @db.VarChar(50)
+  windowStart DateTime @default(now()) @db.DateTime(0)
+  count       Int      @default(0)
+
+  @@id([key, action])
+  @@map("rate_limits")
+}
+
+model AdminUser {
+  id        Int      @id @default(autoincrement())
+  username  String   @unique(map: "uniq_username") @db.VarChar(60)
+  passHash  String   @db.VarChar(255)
+  role      String   @default("moderator")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now()) @db.DateTime(0)
+
+  @@map("admin_users")
+}

@@ -1,0 +1,27 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "builds": [
+    {
+      "src": "api/index.ts",
+      "use": "@vercel/node",
+      "config": {
+        "includeFiles": ["src/**", "prisma/**"]
+      }
+    }
+  ],
+  "routes": [
+    { "src": "/sw.js", "dest": "/public/sw.js" },
+    { "src": "/firebase-messaging-sw.js", "dest": "/public/firebase-messaging-sw.js" },
+    { "src": "/favicon.ico", "dest": "/public/favicon.ico" },
+    { "src": "/robots.txt", "dest": "/public/robots.txt" },
+    { "src": "/sitemap.xml", "dest": "/public/sitemap.xml" },
+    { "src": "/(.*\\.(png|jpg|jpeg|webp|svg|ico|mp3|woff2?|ttf))", "dest": "/public/$1" },
+    { "src": "/(.*)", "dest": "/api/index.ts" }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/cleanup",
+      "schedule": "0 21 * * *"
+    }
+  ]
+}
