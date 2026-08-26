@@ -17,7 +17,20 @@ export const config = {
   firebaseAdmin: {
     projectId: () => req("FIREBASE_PROJECT_ID"),
     clientEmail: () => req("FIREBASE_CLIENT_EMAIL"),
-    privateKey: () => req("FIREBASE_PRIVATE_KEY").replace(/\\n/g, "\n"),
+    privateKey: () => {
+      // Resilient to env mangling: extracts the PEM body however the value
+      // was stored (escaped \\n, real newlines, wrapped in KEY="..." etc.)
+      let k = req("FIREBASE_PRIVATE_KEY");
+      k = k.replace(/\\n/g, "\n").replace(/\\"/g, '"');
+      const m = /-----BEGIN PRIVATE KEY-----([\s\S]*?)-----END PRIVATE KEY-----/.exec(k);
+      if (!m) throw new Error("FIREBASE_PRIVATE_KEY: no PEM block found");
+      const b64 = m[1].replace(/\s+/g, "");
+      return (
+        "-----BEGIN PRIVATE KEY-----\n" +
+        b64.replace(/(.{64})/g, "$1\n") +
+        "\n-----END PRIVATE KEY-----\n"
+      );
+    },
   },
 
   firebaseWeb: {
