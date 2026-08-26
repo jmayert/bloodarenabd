@@ -41,10 +41,10 @@ export async function sendSms(phone: string, message: string): Promise<SmsResult
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), 15000);
   try {
-    // PHP default is GET-with-body; keep POST (well-supported equivalent) unless
-    // ONECODESOFT_METHOD=GET is explicitly required after live testing.
+    // OneCodeSoft accepts POST with JSON body (verified live 2026-08).
+    // Legacy PHP used GET-with-body which Node's fetch forbids.
     const res = await fetch(config.sms.url, {
-      method: process.env.ONECODESOFT_METHOD === "GET" ? "GET" : "POST",
+      method: "POST",
       headers: { Accept: "application/json", "Content-Type": "application/json" },
       body,
       signal: ctrl.signal,
