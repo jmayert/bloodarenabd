@@ -118,7 +118,9 @@ export async function renderShell(locals: ShellLocals): Promise<string> {
       measurementId: process.env.FIREBASE_MEASUREMENT_ID || "",
       vapidKey: process.env.VAPID_PUBLIC_KEY || "",
     },
-    auth: locals.auth,
+    // Must be FALSY when logged out — head-init's _serverSessionAlive() uses
+    // truthiness of BA_AUTH to decide whether silent re-auth is needed.
+    auth: locals.signedIn ? locals.auth : null,
   };
   const cfgJson = JSON.stringify(baConfig).replace(/</g, "\\u003c");
 

@@ -3,7 +3,7 @@
 // ============================================================
 const CSRF_TOKEN = (window.BA_CONFIG && window.BA_CONFIG.csrfToken) || '';
 // Current Firebase-auth session state (from PHP) — null if logged out
-const BA_AUTH = (window.BA_CONFIG && window.BA_CONFIG.auth) || {};
+const BA_AUTH = (window.BA_CONFIG && window.BA_CONFIG.auth) || null;
 // AJAX endpoint — always use pathname (strips ?query from URL bar)
 const _AJAX_URL = window.location.origin + window.location.pathname;
 

@@ -58,7 +58,7 @@ appJs = appJs.replace(
 );
 appJs = appJs.replace(
   /const BA_AUTH = <\?php[\s\S]*?\?>;/,
-  "const BA_AUTH = (window.BA_CONFIG && window.BA_CONFIG.auth) || {};"
+  "const BA_AUTH = (window.BA_CONFIG && window.BA_CONFIG.auth) || null;"
 );
 if (/<\?=|<\?php/.test(appJs)) fatal("unresolved PHP remains in app.js");
 fs.writeFileSync(path.join(OUT_STATIC, "app.js"), appJs);
