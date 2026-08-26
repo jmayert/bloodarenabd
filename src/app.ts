@@ -132,6 +132,22 @@ export function createApp(): express.Application {
 
   app.disable("x-powered-by");
   app.set("trust proxy", 1);
+  // Frontend posts everything as FormData (multipart) — parse it globally.
+  const anyUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 8 * 1024 * 1024, files: 2 },
+  }).any();
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if (req.method !== "POST") return next();
+    anyUpload(req, res, (err: unknown) => {
+      if (err) {
+        console.error("multipart parse error", err);
+        res.status(400).type("application/json").json({ status: "error", msg: "Request parse failed." });
+        return;
+      }
+      next();
+    });
+  });
   app.use(express.urlencoded({ extended: true, limit: "1mb" }));
   app.use(express.json({ limit: "1mb" }));
   app.use(cookieParser());
@@ -339,27 +355,7 @@ export function createApp(): express.Application {
       (req as any).verifiedPhone = await resolveVerifiedPhone(req);
     }
 
-    const run = async () => {
-      if (def.rate) await rateLimit(actionKey!, def.rate[0], def.rate[1])(req as any, res, () => {});
-      if (def.upload) upload.array("req_docs")(req as any, res, () => {});
-    };
-    // Multer must parse before handler when uploading
-    if (def.upload) {
-      upload.array("req_docs")(req as any, res, async (err: unknown) => {
-        if (err) {
-          res.status(400).json({ status: "error", msg: "আপলোড ব্যর্থ হয়েছে।" });
-          return;
-        }
-        try {
-          await def.handler(req as any, res);
-        } catch (e) {
-          console.error(`action ${actionKey} error`, e);
-          if (!res.writableEnded)
-            res.status(500).json({ status: "error", msg: "সার্ভার সমস্যা।" });
-        }
-      });
-      return;
-    }
+    // Files were already parsed by the global multipart middleware (req.files)
 
     // Rate limit then dispatch
     const limited = await new Promise<boolean>((resolve) => {
