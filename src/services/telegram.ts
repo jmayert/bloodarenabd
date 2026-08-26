@@ -21,20 +21,26 @@ export async function postJson(
       signal: ctrl.signal,
     };
     if (opts.insecureTls) {
-      try {
-        // undici ships with Node >=18; Agent lets us skip cert verification
-        // for this request only.
-        const { Agent } = require("undici");
-        (init as any).dispatcher = new Agent({
-          connect: { rejectUnauthorized: false },
-        });
-      } catch {
-        console.error("insecure TLS requested but undici unavailable");
-      }
+      // The bot relay uses a self-signed certificate (legacy TELEGRAM_BOT_INSECURE_TLS).
+      // Node's GLOBAL fetch silently ignores the dispatcher option — must use
+      // undici's own fetch for the custom Agent to take effect.
+      const undici = require("undici");
+      const agent = new undici.Agent({
+        connect: { rejectUnauthorized: false },
+      });
+      const res = await undici.fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: ctrl.signal,
+        dispatcher: agent,
+      } as any);
+      return { status: res.status, text: await res.text() };
     }
     const res = await fetch(url, init);
     return { status: res.status, text: await res.text() };
-  } catch {
+  } catch (err) {
+    console.error("telegram postJson failed:", String(err).slice(0, 150));
     return null;
   } finally {
     clearTimeout(t);
