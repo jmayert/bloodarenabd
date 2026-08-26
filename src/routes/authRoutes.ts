@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { Response } from "express";
 import { initializeApp, cert, App } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
@@ -87,16 +88,42 @@ export async function firebaseAuth(req: any, res: Response) {
     // Phone-provider sign-ins count as verified (PHONE_OTP_COUNTS_VERIFIED)
     const verified = provider === "phone";
 
-    // Session is created by the compat dispatcher (needs JWT secret + CSRF)
-    res.locals.authResult = {
-      uid,
-      provider,
-      email,
-      phone,
-      name,
-      picture,
-      verified,
+    // Issue the server session NOW (replaces PHP session establishment).
+    // Preserve the existing CSRF token so the already-rendered page's baked
+    // token stays valid until next full reload.
+    const { signSession, SESSION_COOKIE } = require("../session") as typeof import("../session");
+    const csrf = req.session?.csrf_token || crypto.randomBytes(32).toString("hex");
+    const jwt = signSession(
+      {
+        auth_uid: uid,
+        auth_provider: provider,
+        auth_email: email ?? "",
+        auth_phone: phone ?? "",
+        auth_name: name ?? "",
+        auth_photo: picture ?? "",
+        csrf_token: csrf,
+      },
+      config.jwtSecret(),
+      config.sessionTtlDays
+    );
+    res.cookie(SESSION_COOKIE, jwt, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: config.sessionTtlDays * 86_400_000,
+    });
+    req.session = {
+      auth_uid: uid,
+      auth_provider: provider,
+      auth_email: email ?? "",
+      auth_phone: phone ?? "",
+      auth_name: name ?? "",
+      auth_photo: picture ?? "",
+      csrf_token: csrf,
+      iat: 0,
+      exp: 0,
     };
+
     return json(res, {
       status: "success",
       provider,
